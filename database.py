@@ -1,13 +1,25 @@
 import sqlite3
 from pathlib import Path
-from werkzeug.security import generate_password_hash
+import hashlib, hmac, os
 
+def hash_password(password: str) -> str:
+    salt = os.urandom(16).hex()
+    h = hashlib.pbkdf2_hmac("sha256", password.encode(),
+                            bytes.fromhex(salt), 100_000).hex()
+    return f"{salt}${h}"
+
+def check_password(stored: str, password: str) ->bool:
+    salt, h = stored.split("$")
+    candidate = hashlib.pbkdf2_hmac("sha256", password.encode(),
+                                    bytes.fromhex(salt), 100_000).hex()
+    return hmac.compare_digest(h, candidate)
+                            
 DB_PATH = Path(__file__).parent / "parking.db"
 
 SCHEMA = """
 PRAGMA foreign_keys = ON;
 
-CREATE TABLE IF NOT EXISTS Vehucles (
+CREATE TABLE IF NOT EXISTS Vehicles (
     vehicle_id    INTEGER PRIMARY KEY AUTOINCREMENT,
     number_plate  VARCHAR(15) NOT NULL UNIQUE,
     vehicle_type  VARCHAR(20),
@@ -21,7 +33,7 @@ CREATE TABLE IF NOT EXISTS  Parking_slots(
     slot_status VARCHAR(10) NOT NULL DEFAULT 'FREE' CHECK (slot_status IN ('FREE','OCCUPIED')) 
 );
 
-CREATE TABLE IF NOT EXIST Tickets(
+CREATE TABLE IF NOT EXISTS Tickets(
     ticket_id     INTEGER PRIMARY KEY AUTOINCREMENT,
     vehicle_id    INTEGER NOT NULL,
     slot_id       INTEGER NOT NULL,
@@ -32,7 +44,7 @@ CREATE TABLE IF NOT EXIST Tickets(
     FOREIGN KEY (slot_id) REFERENCES Parking_slots(slot_id)    
 );
 
-CREATE INDEX IF NOR EXISTS idx_active_tickets  ON Tickets(vehicle_id, ticket_status);
+CREATE INDEX IF NOT EXISTS idx_active_tickets  ON Tickets(vehicle_id, ticket_status);
 
 CREATE TABLE IF NOT EXISTS Tariffs(
     tariff_band_id   INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -51,7 +63,7 @@ CREATE TABLE IF NOT EXISTS Payment(
     amount_due      DECIMAL(10,2) NOT NULL,
     amount_paid     DECIMAL(10,2) NOT NULL,
     payment_method  VARCHAR(10) NOT NULL DEFAULT 'CASH' CHECK (payment_method IN ('CASH','MPESA','CARD')),
-    payment_status  VAARCHAR(10) NOT NULL DEFAULT 'PENDING' CHECK (payment_status IN ('PENDING','CONFIRMED','REJECTED')),
+    payment_status  VARCHAR(10) NOT NULL DEFAULT 'PENDING' CHECK (payment_status IN ('PENDING','CONFIRMED','REJECTED')),
     payment_time    TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (ticket_id) REFERENCES Tickets(ticket_id),
     FOREIGN KEY (tariff_band_id) REFERENCES Tariffs(tariff_band_id),
@@ -70,7 +82,7 @@ CREATE TABLE IF NOT EXISTS Audit_Log(
     action    VARCHAR(100) NOT NULL,
     user_id   INTEGER NOT NULL,
     log_time  TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (user_id) REFERENCES User(user_id)
+    FOREIGN KEY (user_id) REFERENCES Users(user_id)
 );
 """
 def get_conn():
@@ -96,7 +108,7 @@ def init_db(reset=False):
                 (31, 120, 50.00, '31 minutes to 2 hours'),
                 (121, 240, 100.00, 'Over 2 hours to 4 hours'),
                 (241, 360, 300.00, 'Over 4 hours to 6 hours'),
-                (361, 99999, 500.00, 'Over 6 hours');
+                (361, 99999, 500.00, 'Over 6 hours')
              ],
         )
 
@@ -110,11 +122,11 @@ def init_db(reset=False):
     if conn.execute("SELECT COUNT(*) c FROM Users").fetchone()["c"] == 0:
         conn.execute(
             "INSERT INTO Users (username, user_password, user_role) VALUES (?,?,?)",
-            ("admin", generate_password_hash("admin123"), "ADMIN"),
+            ("admin", hash_password("admin123"), "ADMIN"),
         )
         conn.execute(
              "INSERT INTO Users (username, user_password, user_role) VALUES (?,?,?)",
-             ("attendant", generate_password_hash("attendant1234"), "ATTENDANT"),
+             ("attendant", hash_password("attendant1234"), "ATTENDANT"),
         )
     
     conn.commit()

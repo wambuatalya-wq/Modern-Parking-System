@@ -6,7 +6,7 @@ import database as db
 def get_slot_grid():
     conn = db.get_conn()
     rows = conn.execute(
-        "SELECT slot_no, slot_zone, slot_status FROM Parking ORDER BY slot_no"
+        "SELECT slot_no, slot_zone, slot_status FROM Parking_slots ORDER BY slot_no"
     ).fetchall()
     conn.close()
     
@@ -36,7 +36,7 @@ class _Node:
     __slots__ = ("data", "next")
     
     def __init__(self, data):
-        self.head = data
+        self.data = data
         self.next = None
         
 class RecentExitsLog:
@@ -80,31 +80,57 @@ def enter_vehicle(plate, vehicle_type, phone):
         )
         conn.close()
         return {"ok": False, "reason": "Parking full, added to waiting queue", "queue_position": len(waiting_queue)}
-    row = conn.execute("SELECT vehicle_id FROM Vehicles WHERE number_plate=?", (plate,)).fetchone()
+    row = conn.execute(
+        "SELECT vehicle_id FROM Vehicles WHERE number_plate=?",
+        (plate,)
+    ).fetchone()
+
     if row:
-        vehicle_id = roe["vehicle_id"]
+        vehicle_id = row["vehicle_id"]
         conn.execute(
-            "UPDATE Vhicles SET vehicle_type=?, phone_number=?",
-            (vehicle_id, phone, vehicle_id),
+            """UPDATE Vehicles
+               SET vehicle_type=?, phone_number=?
+               WHERE vehicle_id=?""",
+            (vehicle_type, phone, vehicle_id)
         )
     else:
         cur = conn.execute(
-            "INSERT INTO Vehicles (number_plate, vehicle_type, phone_number) VALUES  (?,?,?)",
-            (plate, vehicle_type, phone),
+            """INSERT INTO Vehicles
+               (number_plate, vehicle_type, phone_number)
+               VALUES (?, ?, ?)""",
+            (plate, vehicle_type, phone)
         )
         vehicle_id = cur.lastrowid
-        
+
     cur = conn.execute(
-        "INSERT INTO Tickets (vehicle_id, slot_id) VALUES (?,?)",
-        (vehicle_id, free_slot["slot_id"]),
+        "INSERT INTO Tickets (vehicle_id, slot_id) VALUES (?, ?)",
+        (vehicle_id, free_slot["slot_id"])
     )
-    ticket_id = cur.execute("UPDATE Parking_slots SET slot_status='OCCUPIED' WHERE slot_id=?", (free_slot["slot_id"],))
+    ticket_id = cur.lastrowid
+
+    conn.execute(
+        "UPDATE Parking_slots SET slot_status='OCCUPIED' WHERE slot_id=?",
+        (free_slot["slot_id"],)
+    )
+
     conn.commit()
-    
-    entry_row = conn.execute("SELECT entry-time FROM Tickets WHERE ticket_id=?", (free_slot["slot_id"],))
-    conn.commit()
-    
-    entry_row = conn.execute("SELECT entry_time  FROM Tickets WHERE ticket_id=?", (ticket_id,)).fetchone()
+
+    entry_row = conn.execute(
+        "SELECT entry_time FROM Tickets WHERE ticket_id=?",
+        (ticket_id,)
+    ).fetchone()
+
+    conn.close()
+
+    print_job_stack.append(ticket_id)
+
+    return {
+        "ok": True,
+        "ticket_id": ticket_id,
+        "slot_no": free_slot["slot_no"],
+        "entry_time": entry_row["entry_time"],
+        "plate": plate
+    }
     conn.close()
     
     print_job_stack.append(ticket_id)
@@ -120,7 +146,7 @@ def calc_duration_and_fee(plate):
     row = conn.execute(
         """SELECT t.ticket_id, t.entry_time, v.vehicle_type, v.phone_number, ps.slot_no
         FROM Tickets t
-        JOIN Vehicled v ON v.vehicle_id = t.vehicle_id
+        JOIN Vehicles v ON v.vehicle_id = t.vehicle_id
         JOIN Parking_slots ps ON ps.slot_id = t.slot_id
         WHERE v.number_plate=? AND t.ticket_status='ACTIVE'
         """,
@@ -131,7 +157,7 @@ def calc_duration_and_fee(plate):
         conn.close() 
         return {"ok": False, "reason": "Vehicle not found or not currently parked"}
     
-    entry_time = datetime.fromisoformat(row["emtry_time"])
+    entry_time = datetime.fromisoformat(row["entry_time"])
     duration_min = max(0, int((datetime.now() - entry_time).total_seconds() // 60))
     
     band = conn.execute(
@@ -141,11 +167,22 @@ def calc_duration_and_fee(plate):
     conn.close()
     
     if band is None:
-        band = {"tariff_band_id": None, "fee": 500.00, "description": "Over 6 hours"}
-        
-        return {
-            "ok": True, "ticket_id": row["ticket_id"], "description": band["description"],
-            }
+        band = {
+            "tariff_band_id": None,
+            "fee": 500.00,
+            "description": "Over 6 hours"
+        }
+
+    return {
+        "ok": True,
+        "ticket_id": row["ticket_id"],
+        "description": band["description"],
+        "tariff_band_id": band["tariff_band_id"],
+        "duration_min": duration_min,
+        "amount_due": band["fee"],
+        "slot_no": row["slot_no"],
+        "entry_time": row["entry_time"]
+    } 
         
 def process_payment(ticket_id, tariff_band_id, duration_min, amount_due, method, tendered=None):
     status, paid, change = "PENDING", 0.0, 0.0
@@ -180,8 +217,9 @@ def process_payment(ticket_id, tariff_band_id, duration_min, amount_due, method,
 
 def open_barrier(ticket_id):
     conn = db.get_conn()
-    payment = conn.executive(
-        "SELECT payment_status FORM Payment WHERE ticket_id=? ORDER BY payment-id DISC LIMIT 1",
+    payment = conn.execute(
+        "SELECT payment_status FROM Payment"
+        "WHERE ticket_id=? ORDER BY payment_id DESC LIMIT 1",
         (ticket_id,),
     ).fetchone()
     
@@ -190,11 +228,12 @@ def open_barrier(ticket_id):
         return {"barrier": "CLOSED", "massage": "Payment required"}
     
     ticket = conn.execute(
-        "SELECT slot_id, vehichle_id FROM Tickets WHERE ticket_id=?", (ticket_id)
+        "SELECT slot_id, vehichle_id FROM Tickets WHERE ticket_id=?", 
+        (ticket_id,)
     ).fetchone()
     conn.execute(
-        "UPDATE Tickets SET exit_time=CURRENT-TIMESTAMP, ticket-status='CLOSED' WHERE ticket_id=?",
-        (ticket_id,),
+        """UPDATE Tickets SET exit_time=CURRENT_TIMESTAMP, ticket_status='CLOSED' WHERE ticket_id=?""",
+        (ticket_id,)
     )
     conn.execute("UPDATE Parking_slots SET slot_status='FREE' WHERE slot_id=?", (ticket["slot_id"],))
     conn.commit()
@@ -204,10 +243,10 @@ def open_barrier(ticket_id):
     ).fetchone()["number_plate"]
     recent_exits.push({"plate": plate, "exited_at": datetime.now().isoformat(timespec="seconds")})
     
-    promoted =None
+    promoted = None
     if waiting_queue:
         nxt = waiting_queue.popleft()
-        promoted = enter_vehicle(nxt["palte"], nxt["vehicle_type"], nxt["phone"])
+    promoted = enter_vehicle(nxt["plate"], nxt["vehicle_type"], nxt["phone"])
         
     conn.close()
     return {"barrier":  "OPEN", "message": "Exit granted", "promoted_from_queue": promoted}
@@ -224,7 +263,7 @@ def daily_report(date_str):
     ).fetchall()
     
     total_vehicles = conn.execute(
-        "SELECT COUNT(*) FROM Tickets WHERE DATE(entry_time)=?", (date_str,)
+        "SELECT COUNT(*) AS c FROM Parking_slots WHERE  slot_status='OCCUPIED'", (date_str,)
     ) .fetchone()["c"]
     
     total_slots = conn.execute("SELECT COUNT(*) c FROM Parking_slots").fetchone()["c"]

@@ -1,13 +1,13 @@
-from datetime import date
 
-from flask import Flask, render_template, request, redirect, url_for, session, flash
-from werkzeug.security import check_passsword_hash
+from flask import Flask, render_template, request, redirect, url_for, flash, session
+from datetime import date
+from database import check_password
 
 import database as db
 import algorithms as algo
 
 app = Flask(__name__) 
-app.security_key = "dev-secret-change-me"
+app.secret_key = "dev-secret-change-me"
 
 db.init_db()
 
@@ -27,7 +27,7 @@ def entry():
         plate = request.form["plate"]
         vtype = request.form.get("vehicle_type","Car")
         phone = request.form.get("phone","")
-        result = algo.enter_vehichle(plate, vtype, phone)
+        result = algo.enter_vehicle(plate, vtype, phone)
         
         if result["ok"]:
             flash(f"Ticket #{result['ticket_id']} issued - slot {result['slot_no']}.","success")
@@ -54,13 +54,13 @@ def  exit_lookup():
 def pay():
     """MODULE 5 AND 6: Payment Collection and Barrier control."""
     ticket_id = int(request.form["ticket_id"])
-    tariff_band_id = request.form.get("tariff_band-id") or None
+    tariff_band_id = request.form.get("tariff_band_id") or None
     duration_min = int(request.form["duration_min"])
     amount_due = float(request.form["amount_due"])
-    method = int(request.form["method"])
+    method = request.form["method"]
     tendered = request.form.get("tendered")
     
-    outcome = algo.processs_payment(ticket_id, tariff_band_id, duration_min, amount_due, method, tendered)
+    outcome = algo.process_payment(ticket_id, tariff_band_id, duration_min, amount_due, method, tendered)
     
     if outcome["status"] != "CONFIRMED":
         flash(f"Payment {outcome['status'].lower()} - barrier stays closed.", "error")
@@ -78,21 +78,21 @@ def pay():
 
 @app.route("/login", methods=["GET", "POST"])
 def login():
-    if request.method == "POSY":
+    if request.method == "POST":
         username = request.form["username"]
         password = request.form["password"]
         conn = db.get_conn()
-        user = conn.execute("SELECT * FROM Users WHERE usrname=?", (username,)).fetchone()
+        user = conn.execute("SELECT * FROM Users WHERE username=?", (username,)).fetchone()
         conn.close()
         
-        if user and check_password_hash(user["user-password"], password):
+        if user and check_password(user["user_password"], password):
             session["username"] = user["username"]
             session["role"] = user["user_role"]
             session["user_id"] = user["user_id"]
             db.log_action(user["user_id"], "LOGIN")
             return redirect(url_for("admin_report"))
         
-         flash("Invalid username or password.", "error")
+        flash("Invalid username or password.", "error")
     return render_template("login.html") 
 
 @app.route("/logout") 
@@ -102,7 +102,7 @@ def admin_report():
     if not username:
         return redirect(url_for("login"))
     
-    selected_date = request.args.get("date", data.today().isoformat())
+    selected_date = request.args.get("date", date.today().isoformat())
     report = algo.daily_report(selected_date)
     return render_template("admin.html", report=report, username=username, role=role)
 

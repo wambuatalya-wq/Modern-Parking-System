@@ -1,14 +1,14 @@
-{% extentds base.html %}
+{% extends "base.html" %}
 {% block title %} Exit & Payment{% endblock %}
-{% block contenet %}
+{% block content %}
   <h1>Exit &amp; Payment</h1>
 
-  <from method="post" class="card">
-    <lable>Number plate
+  <form method="post" class="card">
+    <label>Number plate
         <input type="text" name="plate" placeholder="e.g KDB 231B" required>
-    </lable>
+    </label>
     <button classbtn  type="submit">Look up</button>
-  </from>
+  </form>
 
   {% if result %}
    <div class="card result">
@@ -16,30 +16,30 @@
      <p>Duration parked: <strong>{{ result.duration_min }} minute(s)</strong></p>
      <p>Tariff band: {{ result.description }}</p>
      <p class="fee">Amount_due: <strong>Kshs. {{ "%.2f"|format(result.fee) }}</strong></p>
-     <from method="post" action="{{ url_for('pay') }}" class="pay-form">
+     <form method="post" action="{{ url_for('pay') }}" class="pay-form">
        <input type="hidden" name="ticket_id" value="{{ result.ticket_id }}">
        <input type="hidden" name="tariff_band_id" value="{{ result.tariff_band_id }}">
-       <input type="hidden" name="duration_min" value="{{ result.duration_min}  }">
+       <input type="hidden" name="duration_min" value="{{ result.duration_min}}">
        <input type="hidden" name="amount_due" value="{{ result.fee }}">
        
        {% if result.fee == 0 %}
        <button class="btn" type="submit" name="method" value="CASH">confirm Free Exit</button>
        {% else %}
-         <lable>Payment method
+         <label>Payment method
             <select name="method" onchange="document.getElementById('cash-row').style.display = this.value === 'CASH' ? 'block' : 'none'">
                 <option value="MPESA">M-PESA</option>
                 <option value="CARD">Card</option>
                 <option value="CASH">Cash</option>
             </select>
-         </lable>  
+         </label>  
          <div id="cash-row">
-            <lable>Cash  tendered (Kshs.)
+            <label>Cash  tendered (Kshs.)
                 <input type="number" step="0.01" name="tendered" placeholder="{{ result_fee}}">
-            </lable>
+            </label>
          </div>
-         <button class="tbn" type="submit">Collect Payment &amp; Open barrier</button>
+         <button class="btn" type="submit">Collect Payment &amp; Open barrier</button>
          {% endif %}
-     </from>  
+     </form>  
     </div>
 {% endif %}
 {% endblock%}

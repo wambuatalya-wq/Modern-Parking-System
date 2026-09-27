@@ -1,7 +1,7 @@
 {% extends "base.html"%}
 {% block title %}Slot Availability{% endblock %}
-{% block contenet %}
- <meta http-equiv="refreash" content="10">
+{% block content %}
+ <meta http-equiv="refresh" content="10">
 
  <h1>Parking Slot Availability</h1>
  <p class="summary">
@@ -14,14 +14,14 @@
   <div class="grid">
     {% for s in slots %}
     <div class="slot {{ 'free' if s.slot_status == 'FREE' else 'occupied'}}">
-        {{ s.sllot_no}}
+        {{ s.slot_no}}
     </div>
     {% endfor %}
   </div>
   {% endfor %}
 
   <p class="actions">
-    <a class="btn"  herf="{{ url_for('entry') }}"> New Vehichle Entry</a>
-    <a class="btn secondary"  herf="{{ url_for('exit_lookup') }}"> Exit &amp; Pay</a>
+    <a class="btn"  href="{{ url_for('entry') }}"> New Vehichle Entry</a>
+    <a class="btn secondary"  href="{{ url_for('exit_lookup') }}"> Exit &amp; Pay</a>
 </p>
 {% endblock %}
