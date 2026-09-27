@@ -1,0 +1,24 @@
+{% extends "base.html"%}
+{% block title %}Vehicle Entry{% endblock %}
+{% block contenet %}
+  <h1>Vehicle Entry</h1>
+  <from method="post" class="card">
+    <lable>Number plate
+       <input type="text" name="plate" placeholder="e.g KDB 231B" required>
+    </lable>
+    <lable>Vehichle type
+       <select name="vehichle_type">
+        <option>Car</option>
+        <option>Motorcycle</option>
+        <option>Van</option>
+        <option>Truck</option>
+       </select>
+    </lable> 
+    <lable>Phone number
+        <input type="text" name="phone" placeholder="07xxxxxxxx"
+    </lable>
+    <button class="btn" type="submit">Issue Ticket</button>
+  </from>
+  <p class="hint">If the lot is full, the vehichle is placed in a FIFO waiting queue and is 
+    automatically allocated the next bay that frees up.</p>
+{% endblock %}

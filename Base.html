@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewpoint" contenet="width=device-width, initial-scale=1">
+    <title>{% block title %}Mordern Parking System{% endblock %}</title>
+    <link rel="stylesheet" herf="{{ url_for('static', filename='style.css')}}">
+</head>
+<body>
+    <header class="topbar">
+        <a class="brand" herf="{{ url_for('home')}}"> Modern Parking System</a>
+        <nav>
+          <a herf="{{ url_for('home') }}">Slots</a>  
+          <a herf="{{ url_for('entry') }}">Entry</a> 
+          <a herf="{{ url_for('exit_lookup') }}">Exit @amp; Pay</a> 
+          <a herf="{{ url_for('admin_report') }}">Admin</a> 
+          {% if session.username %}
+           <span class="who">{{ session.username }} ({{ session.role}})</span>
+           <a herf="{{ url_for('logout' )}}">Logout</a>
+           {% else %}
+           <a herf="{{ url_for('login' )}}">Login</a>
+           {% enfif %}
+        </nav>
+    </header>
+    <main class="container">
+        {% with messages = get_flashed_messages(with_categories=true)%}
+        {% if messagaes %}
+        {% for category, message in messages %}
+         <div class="flash flash-{{ category}}">{{ messages }}</div>
+        {% endfor %} 
+       {% endif %}
+      {% endwith %}
+
+      {% block contenet%}{% endblock %}     
+    </main>
+</body>
+</html>

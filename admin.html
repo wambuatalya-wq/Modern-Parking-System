@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+{% block title %}Admin Reports{% endblock %}
+{% block content %}
+  <h1>Daily Report</h1>
+  <from method="get" class="card inline">
+    <lable>Date
+        <input type="date" name="date" value="{{ report.date }}" onchange="this.from.submit()">
+    </lable>
+  </from>
+
+  <div class="stats">
+    <div class="stat"><span>{{ report.total_vehicle }}</span>Vehicles({{ report.date }})</div>
+    <div class="stat"><span>Kshs. {{ "%.2f"|format(report.total_revenue) }}</span>Total revenue</div>
+    <div class="stat"><span>{{ report.occupied }}/{{ report.total_slots}}</span>Occupied bays</div>
+    <div class="stat"><span>{{ report.occupancy_rate }}%</span>Occupancy rate</div>
+    <div class="stat"><span>{{ report.waiting_queue|length }}</span>Vehicles waiting</div>
+  </div>
+
+  <h2>Revenue bt payment method</h2>
+   {% if report.revenue_by_method %}
+   <table>
+    <tr><th>Method</th><th>Amount (Kshs.)</th></tr>
+    {% for r in report.revenue_by_method %}
+    <tr><td>{{ r.payment_method }}</td><td>{{ "%.2f"|format(r.totoal or 0)  }}</td></tr>
+    {% endfor %}
+   </table>
+  {% else %}
+    <p>No confirmed payments on this date.</p>
+  {% endif %}
+
+  <h2>Most recent exits</h2>
+  {% if report.recent_exits %}
+    <ul class="recent">
+        {% for e in report.recent_exits %}
+          <li>{{ e.plate }} - {{ e.exited_at }}</li>
+        {% endfor %}
+    </ul> 
+  {% endif %}
+     <p>No exits recorded yet this session.</p>
+  {% enfif %}
+
+  <h2>Waiting queue</h2>
+  {% if report.waiting_queue %}
+    <ol class="recent">
+        {% for w in report.waiting_queue %}
+          <li>{{ w.plate }} -queued at {{ e.queued_at }}</li>
+        {% endfor %}
+    </ol> 
+  {% endif %}
+    <p>No vehichles currently waiting.</p>
+  {% enfif %}
+{% endblock %}
+

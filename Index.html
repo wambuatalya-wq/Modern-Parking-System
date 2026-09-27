@@ -1,0 +1,27 @@
+{% extends "base.html"%}
+{% block title %}Slot Availability{% endblock %}
+{% block contenet %}
+ <meta http-equiv="refreash" content="10">
+
+ <h1>Parking Slot Availability</h1>
+ <p class="summary">
+    <strong>{{ available }}</strong> of <strong>{{ total}}</strong> bays free
+    &nbsp; &nbsp; page refreshes every 10s
+ </p>
+
+ {% for zone, slots in zones.items() %}
+  <h2>Zone {{ zone }}</h2>
+  <div class="grid">
+    {% for s in slots %}
+    <div class="slot {{ 'free' if s.slot_status == 'FREE' else 'occupied'}}">
+        {{ s.sllot_no}}
+    </div>
+    {% endfor %}
+  </div>
+  {% endfor %}
+
+  <p class="actions">
+    <a class="btn"  herf="{{ url_for('entry') }}"> New Vehichle Entry</a>
+    <a class="btn secondary"  herf="{{ url_for('exit_lookup') }}"> Exit &amp; Pay</a>
+</p>
+{% endblock %}

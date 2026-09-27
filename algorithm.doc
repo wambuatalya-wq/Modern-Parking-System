@@ -1,0 +1,145 @@
+ALGORITHMS
+MODULE 1: Slot availability display
+START
+Connect to the Parking_slots Database
+Initialize counter availability = 0
+For each slot_no in Parking_slots table DO
+      IF slot_status == "FREE" display slot_no, available, slot_zone
+        available = available + 1
+      ELSE
+        display unavailable
+      END IF
+END FOR 
+Display slots available // this dislaays the available slots and their slot_numnber and slot_zone
+STOP
+
+MODULE 2: Vehicle Entry
+START
+Ask for vehicles plate number
+IF plate_number.status == 'parked'
+    THEN REJECT 'Vehicle already inside'
+END IF
+IF available == 0
+    THEN REJECT 'Parking full'
+ELSE 
+    Allocate an available slot_no
+    Record current date and time
+    Record plate number, vehicle type and phone number
+    Update slot_status = 'occupied' WHERE slotID = slotID
+    Display ticket: plate, vehicle type, phone number, slot, entry time
+END IF
+STOP
+
+MODULE 3: Slot allocation
+START
+Build a list free_bays 
+IF free_bays == EMPTY  display "PARKING FULL"
+ELSE 
+  choose slot with lowest slot_no in free_bays
+  remove slot from free_bays
+  slot == "occupied" // status stored in the Database
+END IF
+Display slot_id
+STOP
+
+MODULE 4: Duration and fee calculation
+START
+Search vehicle number plate from the records
+IF plate_number ='parked'
+     THEN retrieve vehicle information, slot and entry time
+ELSE 
+      Display vehicle not found
+END IF
+Duration = current time - entry time
+IF duration <= 30 min
+    fee = 0
+ELSE IF duration <= 2 hours
+    fee = 50
+ELSE IF duration <= 4 hours
+    fee = 100
+ELSE IF duration <= 6 hours
+    fee = 300
+ELSE 
+    fee = 500
+END IF
+Display duration
+Display fee
+STOP
+
+MODULE 5: Payment collection
+START
+Connect to the Payment table
+IF amount_due = 0 THEN display payment as  "FREE_EXIT" //When parking duration <=30 minutes
+   returen payment confirmed and barriar is opened
+END IF
+  ELSE IF payment method = M-PESA:
+     send a STK push to driver's phone //DARAJA_STK_PUSH
+     wait for confirmation
+ ELSE IF payment method = CARD:
+     charge the card 
+     IF amount available in CARD < amount_due return payment rejected //barrier reemains closed
+        ELSE
+         wait for approval
+      END IF
+ ELSE IF payment method = CASH:
+      the attendant enters cash received
+      IF cash < amount_due return payment rejected
+    ELSE
+      cash > anount_due give change
+  END IF
+END IF
+When payment is not confirmed return payment rejected
+Save  payment to  the Payments table // in the Database
+STOP
+
+MODULE 6: Exit Barrier Control
+START
+Check payment status
+IF payment status == 'Confirmed'
+     Open Barrier
+     Record exit time
+     Update vehicle status to 'exited'
+     Update slot_status to 'free'
+ELSE
+    Keep barrier closed
+    Display 'Payment required'
+END IF
+STOP
+
+MODULE 7:Admin and reporting
+START
+Select SUM(amount_paid) FROM payments WHERE DATE(timestamp) of the date selected
+Group by payment_method
+Select COUNT(*) FROM vehichles WHERE DATE(entry_time) of the date selected
+Display the revenue per payment method, total vehichles, occupancy rates
+STOP
+
+DATA STRUCTURES AND THEIT JUSTIFICATION
+1.Array
+   Where used and justification:
+     Used for the in-memory copy of parking slots loaded from the Parking_slots table at start-up.
+     Slots are fixed and numbered, giving direct index access, which makes it easy to render the 
+     visual grid the client asked for — no shifting of elements is needed when a slot's status 
+     changes. Also used for the fee schedule loaded from Tariffs: a small, fixed set of bands 
+     that is scanned once per lookup, kept dynamic by loading from the table rather than 
+     hard-coding values in code.
+2. Hash Table/Map
+   Where used and justification:
+    a. Used in active tickets looked up by the ticker ID for a avarage lookup at the exit with  
+       no scanning through records. This is essential in the working of the barrier.
+    b. In the plate ID number through the ticket ID index so that drivers are identified by plate 
+       and not ID in an instant mapping the plate to the ticket.
+3.Queue
+   Where used and justification:
+    Used when there are waiting drivers when the parking is fully occupied by ensuring that the 
+    first driver to arrive enters first when a slot frees (FIFO is fair). It supports "parking
+    full" scenario.
+4.Linked list
+   Where used and justification:
+    Used in the archive of exited vehicles where the  unkown,growing size is stored in the dynamic 
+    memory  and an insert is used at the front making it ideal for "recent exits" reports (newest first).
+ 5.Stack  
+    Where use and justification:
+     Undoes the user (admim or attendant) action and the processing of ticket print jobs based on 
+     the last in first out ensuring the last action is reserved first. 
+    
